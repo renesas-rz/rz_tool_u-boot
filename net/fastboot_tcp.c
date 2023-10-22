@@ -148,6 +148,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 			fastboot_tcp_reset();
 			break;
 		}
+		fastboot_tcp_send_packet(TCP_ACK | TCP_PUSH, NULL, 0);
 		strlcpy(command, pkt, len + 1);
 		fastboot_command_id = fastboot_handle_command(command, response);
 		fastboot_tcp_send_message(response, strlen(response));
@@ -199,7 +200,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 					printf("Fastboot downloading error. Data remain: %u received: %u\n",
 					       fastboot_data_remaining(), remains_to_download);
 					fastboot_tcp_reset();
-					break;
+					goto out;
 				}
 				pkt += remains_to_download;
 				len -= remains_to_download;
@@ -246,6 +247,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 		break;
 	}
 
+out:
 	memset(command, 0, FASTBOOT_COMMAND_LEN);
 	memset(response, 0, FASTBOOT_RESPONSE_LEN);
 	curr_sport = 0;
