@@ -544,6 +544,7 @@ static int ravb_probe(struct udevice *dev)
 {
 	struct eth_pdata *pdata = dev_get_plat(dev);
 	struct ravb_priv *eth = dev_get_priv(dev);
+	struct bb_miiphy_bus *phybus;
 #if !(defined(CONFIG_RZ_V2M))
 	struct ofnode_phandle_args phandle_args;
 #endif
@@ -579,7 +580,8 @@ static int ravb_probe(struct udevice *dev)
 
 	mdiodev->read = bb_miiphy_read;
 	mdiodev->write = bb_miiphy_write;
-	bb_miiphy_buses[0].priv = eth;
+	phybus = (struct bb_miiphy_bus *)pdata->priv_pdata;
+	phybus->priv = eth;
 	snprintf(mdiodev->name, sizeof(mdiodev->name), dev->name);
 
 	ret = mdio_register(mdiodev);
@@ -695,7 +697,17 @@ int ravb_bb_delay(struct bb_miiphy_bus *bus)
 
 struct bb_miiphy_bus bb_miiphy_buses[] = {
 	{
-		.name		= "ravb",
+		.name		= "ravb0",
+		.init		= ravb_bb_init,
+		.mdio_active	= ravb_bb_mdio_active,
+		.mdio_tristate	= ravb_bb_mdio_tristate,
+		.set_mdio	= ravb_bb_set_mdio,
+		.get_mdio	= ravb_bb_get_mdio,
+		.set_mdc	= ravb_bb_set_mdc,
+		.delay		= ravb_bb_delay,
+	},
+	{
+		.name		= "ravb1",
 		.init		= ravb_bb_init,
 		.mdio_active	= ravb_bb_mdio_active,
 		.mdio_tristate	= ravb_bb_mdio_tristate,
@@ -715,6 +727,8 @@ static const struct eth_ops ravb_ops = {
 	.stop			= ravb_stop,
 	.write_hwaddr		= ravb_write_hwaddr,
 };
+
+static int bb_miiphy_index;
 
 int ravb_of_to_plat(struct udevice *dev)
 {
@@ -739,7 +753,8 @@ int ravb_of_to_plat(struct udevice *dev)
 	if (cell)
 		pdata->max_speed = fdt32_to_cpu(*cell);
 
-	sprintf(bb_miiphy_buses[0].name, dev->name);
+	pdata->priv_pdata = &bb_miiphy_buses[bb_miiphy_index];
+	sprintf(bb_miiphy_buses[bb_miiphy_index++].name, dev->name);
 
 	return ret;
 }
