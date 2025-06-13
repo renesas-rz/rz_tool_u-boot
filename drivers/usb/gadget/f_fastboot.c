@@ -405,7 +405,9 @@ static int fastboot_tx_write(const char *buffer, unsigned int buffer_size)
 	memcpy(in_req->buf, buffer, buffer_size);
 	in_req->length = buffer_size;
 
+#if !defined(CONFIG_RCAR_GEN3)
 	usb_ep_dequeue(fastboot_func->in_ep, in_req);
+#endif
 
 	ret = usb_ep_queue(fastboot_func->in_ep, in_req, 0);
 	if (ret)
@@ -428,6 +430,9 @@ static unsigned int rx_bytes_expected(struct usb_ep *ep)
 	int rx_remain = fastboot_data_remaining();
 	unsigned int rem;
 	unsigned int maxpacket = usb_endpoint_maxp(ep->desc);
+#if defined(CONFIG_RCAR_GEN3)
+	maxpacket = ep->maxpacket;
+#endif
 
 	if (rx_remain <= 0)
 		return 0;
