@@ -260,6 +260,12 @@ config FASTBOOT_OEM_BOARD
 	  command allows running vendor custom code defined in board/ files.
 	  Otherwise, it will do nothing and send fastboot fail.
 
+config FASTBOOT_OEM_UPDATE_BOOTLOADER_FROM_PC
+    bool "Enable OEM update bootloader from PC"
+    help
+      Allow fastboot command 'oem emmcupdate' to update
+      the bootloader image via USB fastboot.
+
 endif # FASTBOOT
 
 endmenu
