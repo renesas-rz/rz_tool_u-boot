@@ -6,6 +6,20 @@
 #ifndef _FB_MMC_H_
 #define _FB_MMC_H_
 
+extern uint8_t f_completed_flash_wic;
+
+#define EMMC_BLOCK_SIZE 512
+
+/* Maximum number of SDHI (SD Host Interface) controllers supported by the SoC. */
+#define MAX_SDHI_CONTROLLER 3
+
+#define BL2_ADD_SAVE_TO_EMMC 0x00000001
+#define FIP_ADD_SAVE_TO_EMMC 0x00000320
+#define CMD_UPDATE_BOOTLOADER_BL2 \
+	"fatload mmc 0:1 0x4D000000 bl2_bp_emmc-smarc-rzg3s.bin"
+#define CMD_UPDATE_BOOTLOADER_FIP \
+	"fatload mmc 0:1 0x4D000000 fip-smarc-rzg3s.bin"
+
 struct blk_desc;
 struct disk_partition;
 
@@ -40,3 +54,20 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
  */
 void fastboot_mmc_erase(const char *cmd, char *response);
 #endif
+
+/**
+ * write_to_eMMC_bootpart() - Write data to eMMC Boot Partition
+ *
+ * @blk_start: Start block
+ */
+int write_to_eMMC_bootpart(size_t blk_start);
+
+/**
+ * update_bootloader_to_eMMC() - Update bootloader for eMMC from the WIC image
+ *
+ * @bl2_cmd: Command update B2L file
+ * @bl2_add: Address save GL2 to eMMC
+ * @fip_cmd: Command update FIP file
+ * @fip_add: Address save FIP to eMMC
+ */
+int update_bootloader_to_eMMC(const char *bl2_cmd, size_t bl2_add, const char *fip_cmd, size_t fip_add);
