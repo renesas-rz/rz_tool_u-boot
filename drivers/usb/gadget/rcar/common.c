@@ -162,7 +162,7 @@ void usbhs_sys_function_ctrl(struct usbhs_priv *priv, int enable)
 	u16 val  = HSE | USBE;
 
 	/* CNEN bit is required for function operation */
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU) || defined(CONFIG_R9A08G045S)
 	if (usbhs_get_dparam(priv, has_cnen)) {
 		mask |= CNEN;
 		val  |= CNEN;
@@ -467,8 +467,10 @@ static int usbhsc_drvcllbck_notify_hotplug(struct platform_device *pdev)
 
 
 #if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
-#define USBHS_BASE      0x11c60000
-#else /* !defined(CONFIG_R9A07G044L) */
+#define USBHS_BASE	0x11c60000
+#elif defined(CONFIG_R9A08G045S)
+#define USBHS_BASE	0x11E20000
+#else
 #define USBHS_BASE	0xe6590000
 #endif
 int usbhs_probe(struct platform_device *pdev)
@@ -494,18 +496,20 @@ int usbhs_probe(struct platform_device *pdev)
 	pr_dbg("priv->dparam.type = %ld\n", priv->dparam.type);
 #if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
 	priv->dparam.type = USBHS_TYPE_G2L;
-#else /* !defined(CONFIG_R9A07G044L) */
+#elif defined(CONFIG_R9A08G045S)
+	priv->dparam.type = USBHS_TYPE_G3S;
+#else
 	priv->dparam.type = USBHS_TYPE_RCAR_GEN3;
 #endif
 
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU) || defined(CONFIG_R9A08G045S)
 	priv->pfunc = usbhs_g2l_ops;
-#else /* !defined(CONFIG_R9A07G044L) */
+#else
 	priv->pfunc = usbhs_rcar3_ops;
 #endif
 	if (!priv->dparam.pipe_configs) {
 		priv->dparam.pipe_configs = usbhsc_new_pipe;
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU) || defined(CONFIG_R9A08G045S)
 		priv->dparam.has_cnen = 1;
 		priv->dparam.cfifo_byte_addr = 1;
 #endif
@@ -524,7 +528,7 @@ int usbhs_probe(struct platform_device *pdev)
 	priv->pdev	= pdev;
 	spin_lock_init(usbhs_priv_to_lock(priv));
 
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU) || defined(CONFIG_R9A08G045S)
 	/* Fix fifo selection error */
 	if (priv->pfunc.power_ctrl) {
 		platform_set_drvdata(pdev, priv);
