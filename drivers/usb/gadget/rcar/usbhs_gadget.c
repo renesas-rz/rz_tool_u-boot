@@ -143,7 +143,7 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 	return 0;
 }
 
-int usb_gadget_handle_interrupts(int index)
+int dm_usb_gadget_handle_interrupts(struct udevice *udc)
 {
 	phy_dev.irq(0, phy_dev.priv);
 	usbhs_dev.irq(0, usbhs_dev.priv);
