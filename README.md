@@ -6,7 +6,7 @@ Currently the following boards and MPUs are supported:
 * Board: RZG3S SMARC Evaluation Kit / MPU: R9A08G045 (RZ/G3S)
 * Board: RZG3E SMARC Evaluation Kit / MPU: R9A09G047 (RZ/G3E)
 
-# Using the DDR Tools
+# Using the Install Utility Tool
 Please follow the instructions for each supported Renesas evaluation board:
 * **RZ/G2L**
   * URL: https://github.com/renesas-rz/rz_tool_u-boot.git
