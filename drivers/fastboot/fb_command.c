@@ -347,9 +347,7 @@ static void __maybe_unused flash(char *cmd_parameter, char *response)
 		fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr,
 					 image_size, response);
 		if (f_completed_flash_wic){
-			update_bootloader_to_eMMC(CMD_UPDATE_BOOTLOADER_BL2, \
-			BL2_ADD_SAVE_TO_EMMC, CMD_UPDATE_BOOTLOADER_FIP, \
-			FIP_ADD_SAVE_TO_EMMC);
+			update_bootloader_to_eMMC();
 		}
 	}
 
@@ -601,7 +599,9 @@ static void oem_emmcupdate(char * cmd_parameter, char *response)
 		return;
 	}
 
-	if (strcmp(cmd_parameter, "writebl2") && strcmp(cmd_parameter, "writefip")) {
+	if (strcmp(cmd_parameter, "writebl2") && \
+		strcmp(cmd_parameter, "writefip_vlpv4") && \
+		strcmp(cmd_parameter, "writefip_vlpv3")) {
 		printf("oem emmcupdate %s command is NOT supported yet\n", cmd_parameter);
 		fastboot_fail("Using unsupported oem emmcupdate command, please check!", response);
 		return;
@@ -610,8 +610,11 @@ static void oem_emmcupdate(char * cmd_parameter, char *response)
 	if (!strcmp(cmd_parameter, "writebl2"))
 		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC);
 
-	if (!strcmp(cmd_parameter, "writefip"))
-		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_SAVE_TO_EMMC);
+	if (!strcmp(cmd_parameter, "writefip_vlpv4"))
+		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_300_SAVE_TO_EMMC);
+
+	if (!strcmp(cmd_parameter, "writefip_vlpv3"))
+		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_320_SAVE_TO_EMMC);
 
 	if (!cmd_ret) {
 		fastboot_okay(NULL, response);

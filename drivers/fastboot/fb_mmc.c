@@ -19,6 +19,7 @@
 #include <linux/compat.h>
 #include <android_image.h>
 #include <asm/io.h>
+#include <fs.h>
 
 #define BOOT_PARTITION_NAME "boot"
 
@@ -786,26 +787,38 @@ int write_to_eMMC_bootpart(size_t blk_start)
 }
 
 /**
- * update_bootloader_to_eMMC() - Update bootloader for eMMC from the WIC image
- *
- * @bl2_cmd: Command update B2L file
- * @bl2_add: Address save GL2 to eMMC
- * @fip_cmd: Command update FIP file
- * @fip_add: Address save FIP to eMMC
+ * update_bootloader_to_eMMC(void) - Update bootloader for eMMC from the WIC image
  */
-int update_bootloader_to_eMMC(const char *bl2_cmd, size_t bl2_add, const char *fip_cmd, size_t fip_add)
+void update_bootloader_to_eMMC(void)
 {
-	/* Start update bootloader from the WIC image */
 	int cmd_ret = 1;
-	cmd_ret = run_command(bl2_cmd, 0);
+	size_t fip_address;
+
+	if (fs_set_blk_dev("mmc", "0:1", FS_TYPE_FAT)) {
+		printf("Cannot open FAT on mmc 0:1\n");
+	} else {
+		if (!fs_exists(BL2_BP_EMMC)) {
+			fs_set_blk_dev("mmc", "0:1", FS_TYPE_FAT);
+			if (!fs_exists(BL2_BP_MMC)) {
+				printf("Neither %s nor %s was found!\n", BL2_BP_EMMC, BL2_BP_MMC);
+			} else {
+				fip_address = FIP_ADD_300_SAVE_TO_EMMC;
+				cmd_ret = run_command(CMD_UPDATE_BOOTLOADER_BL2_MMC, 0);
+			}
+		} else {
+			fip_address = FIP_ADD_320_SAVE_TO_EMMC;
+			cmd_ret = run_command(CMD_UPDATE_BOOTLOADER_BL2_EMMC, 0);
+		}
+	}
+
 	if (cmd_ret == 0)
-		cmd_ret = write_to_eMMC_bootpart(bl2_add);
+		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC);
 
 	if (cmd_ret == 0)
 	{
-		cmd_ret = run_command(fip_cmd, 0);
+		cmd_ret = run_command(CMD_UPDATE_BOOTLOADER_FIP, 0);
 		if (cmd_ret == 0)
-			cmd_ret = write_to_eMMC_bootpart(fip_add);
+			cmd_ret = write_to_eMMC_bootpart(fip_address);
 	}
 
 	if (!cmd_ret) {
@@ -813,5 +826,4 @@ int update_bootloader_to_eMMC(const char *bl2_cmd, size_t bl2_add, const char *f
 	} else {
 		printf("Failed in updating eMMC bootloader\n");
 	}
-	return cmd_ret;
 }
