@@ -10,16 +10,16 @@ Currently the following boards and MPUs are supported:
 Please follow the instructions for each supported Renesas evaluation board:
 * **RZ/G2L**
   * URL: https://github.com/renesas-rz/rz_tool_u-boot.git
-  * Branch: v2021.10/rzg2l
-  * Revision: 231b59b041a42dfb73fd135d79d728dc946a7493
-  * (Tag: v1.0)
+  * Branch: v2024.07/rzg2l
+  * Revision: 995937233a51ae16d344118a1c0cab3a8fbf66d3
+  * (Tag: v1.1.0_RZ/G2L)
 * **RZ/G3S**
   * URL: https://github.com/renesas-rz/rz_tool_u-boot.git
   * Branch: v2024.07/rzg3s
-  * Revision: 23b4c3bc8dc7ab1f7593c8af1ee54bfc8191cdb5
-  * (Tag: v1.1_RZ/G3S)
+  * Revision: 7ae25300e0570d2bb0251ead3fc926a63325768a
+  * (Tag: v1.1.1_RZ/G3S)
 * **RZ/G3E**
   * URL: https://github.com/renesas-rz/rz_tool_u-boot.git
   * Branch: v2024.07/rzg3e
-  * Revision: de8717e8976e49f5524c5586583e58fe36cb62f6
-  * (Tag: v1.1_RZ/G3E)
+  * Revision: 98c578b9eee93ffdca4199b798183383be129d8c
+  * (Tag: v1.1.1_RZ/G3E)
