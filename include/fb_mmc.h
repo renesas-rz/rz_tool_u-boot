@@ -68,7 +68,7 @@ void fastboot_mmc_erase(const char *cmd, char *response);
  *
  * @blk_start: Start block
  */
-int write_to_eMMC_bootpart(size_t blk_start);
+int write_to_eMMC_bootpart(size_t blk_start, uint32_t *out_checksum);
 
 /**
  * update_bootloader_to_eMMC() - Update bootloader for eMMC from the WIC image
