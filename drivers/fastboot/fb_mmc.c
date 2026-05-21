@@ -776,7 +776,6 @@ int write_to_eMMC_bootpart(size_t blk_start, uint32_t *out_checksum)
 		return -1;
 	}
 
-	memset(buffer, 0, filesize);
 	size_t read_count = blk_dread(dev_desc, blk_start, blk_count, buffer);
 
 	if (read_count != blk_count) {
