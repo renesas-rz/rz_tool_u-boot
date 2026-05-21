@@ -689,7 +689,6 @@ void rxhand_tcp_f(union tcp_build_pkt *b, unsigned int pkt_len)
 
 	tcp_activity_count++;
 	if (tcp_activity_count > TCP_ACTIVITY) {
-		puts("| ");
 		tcp_activity_count = 0;
 	}
 
