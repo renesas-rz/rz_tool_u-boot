@@ -776,14 +776,13 @@ int write_to_eMMC_bootpart(size_t blk_start, uint32_t *out_checksum)
 		return -1;
 	}
 
-	memset(buffer, 0, filesize);
 	size_t read_count = blk_dread(dev_desc, blk_start, blk_count, buffer);
 
 	if (read_count != blk_count) {
-        printf("MMC Read-back error for verification!\n");
-        unmap_physmem(buffer, filesize);
-        return -1;
-    }
+		printf("MMC Read-back error for verification!\n");
+		unmap_physmem(buffer, filesize);
+		return -1;
+	}
 
 	uint32_t checksum = crc32(0, (unsigned char *)buffer, filesize);
 	*out_checksum = checksum;
