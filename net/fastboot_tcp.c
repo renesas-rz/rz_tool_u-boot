@@ -66,6 +66,7 @@ static void fastboot_tcp_answer(u8 action, unsigned int len)
 static void fastboot_tcp_reset(void)
 {
 	fastboot_tcp_answer(TCP_RST, 0);
+	tcp_set_tcp_state(TCP_CLOSED);
 	state = FASTBOOT_CLOSED;
 	fastboot_tcp_reset_state();
 }
