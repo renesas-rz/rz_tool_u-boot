@@ -522,7 +522,6 @@ static u8 tcp_state_machine(u8 tcp_flags, u32 tcp_seq_num, int payload_len)
 	if (tcp_rst) {
 		action = TCP_DATA;
 		current_tcp_state = TCP_CLOSED;
-		net_set_state(NETLOOP_FAIL);
 		debug_cond(DEBUG_INT_STATE, "TCP Reset %x\n", tcp_flags);
 		return TCP_RST;
 	}
