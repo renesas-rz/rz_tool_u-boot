@@ -814,21 +814,42 @@ int update_bootloader_to_eMMC(const char *bl2_cmd, size_t bl2_add, const char *f
 	/* Start update bootloader from the WIC image */
 	uint32_t crc_val = 0;
 	int cmd_ret = 1;
+	char buf[16];
+
+	/* Write BL2 */
 	cmd_ret = run_command(bl2_cmd, 0);
-	if (cmd_ret == 0)
-		cmd_ret = write_to_eMMC_bootpart(bl2_add, &crc_val);
-
-	if (cmd_ret == 0)
-	{
-		cmd_ret = run_command(fip_cmd, 0);
-		if (cmd_ret == 0)
-			cmd_ret = write_to_eMMC_bootpart(fip_add, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to run bl2 command\n");
+		return cmd_ret;
 	}
 
-	if (!cmd_ret) {
-		printf("Succeeded in updating eMMC bootloader\n");
-	} else {
-		printf("Failed in updating eMMC bootloader\n");
+	cmd_ret = write_to_eMMC_bootpart(bl2_add, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to write BL2 to eMMC\n");
+		return cmd_ret;
 	}
+
+	snprintf(buf, sizeof(buf), "%08x", crc_val);
+	if (env_set("crc32-bl2", buf))
+		printf("Failed to set env crc32-bl2\n");
+
+	/* Write FIP */
+	cmd_ret = run_command(fip_cmd, 0);
+	if (cmd_ret) {
+		printf("Failed to run fip command\n");
+		return cmd_ret;
+	}
+
+	cmd_ret = write_to_eMMC_bootpart(fip_add, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to write FIP to eMMC\n");
+		return cmd_ret;
+	}
+
+	snprintf(buf, sizeof(buf), "%08x", crc_val);
+	if (env_set("crc32-fip", buf))
+		printf("Failed to set env crc32-fip\n");
+
+	printf("Succeeded in updating eMMC bootloader\n");
 	return cmd_ret;
 }
