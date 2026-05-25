@@ -603,26 +603,23 @@ static void oem_emmcupdate(char * cmd_parameter, char *response)
 		return;
 	}
 
-	if (strcmp(cmd_parameter, "writebl2") && strcmp(cmd_parameter, "writefip")) {
+	if (!strcmp(cmd_parameter, "writebl2")) {
+		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC, &crc_val);
+		env_name = "crc32-bl2";
+	} else if (!strcmp(cmd_parameter, "writefip")) {
+		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_SAVE_TO_EMMC, &crc_val);
+		env_name = "crc32-fip";
+	} else {
 		printf("oem emmcupdate %s command is NOT supported yet\n", cmd_parameter);
 		fastboot_fail("Using unsupported oem emmcupdate command, please check!", response);
 		return;
 	}
 
-	if (!strcmp(cmd_parameter, "writebl2")) {
-		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC, &crc_val);
-		env_name = "crc32-bl2";
-	}
-
-	if (!strcmp(cmd_parameter, "writefip")) {
-		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_SAVE_TO_EMMC, &crc_val);
-		env_name = "crc32-fip";
-	}
-
-	if (!cmd_ret) {
+	if (!cmd_ret && env_name) {
 		char buf[16];
 		snprintf(buf, sizeof(buf), "%08x", crc_val);
-		env_set(env_name, buf);
+		if (env_set(env_name, buf))
+			printf("Failed to set env %s\n", env_name);
 		fastboot_okay(NULL, response);
 	} else {
 		printf("ERROR %d when running command %s\n", cmd_ret, cmd_parameter);
