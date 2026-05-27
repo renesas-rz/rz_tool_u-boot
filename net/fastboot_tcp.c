@@ -12,6 +12,7 @@
 #define HEADER_BUFFER_SIZE_BYTES 8
 
 #define FASTBOOT_TCP_TIMEOUT_MS 5000UL
+#define FASTBOOT_TCP_DOWNLOAD_TIMEOUT_MS 20000UL
 
 static const u8 handshake_length = 4;
 static const uchar *handshake = "FB01";
@@ -55,6 +56,12 @@ static void fastboot_tcp_reset_state(void)
 	command_handled_success = false;
 }
 
+static unsigned long fastboot_tcp_get_timeout(void)
+{
+	return state == FASTBOOT_DOWNLOADING ?
+		FASTBOOT_TCP_DOWNLOAD_TIMEOUT_MS : FASTBOOT_TCP_TIMEOUT_MS;
+}
+
 static void fastboot_tcp_answer(u8 action, unsigned int len)
 {
 	const u32 response_seq_num = curr_tcp_ack_num;
@@ -77,8 +84,10 @@ static void fastboot_tcp_reset(void)
  * fastboot_tcp_timeout_handler() - handle TCP connection timeout
  *
  * Called by net loop timer if no packet is received for
- * FASTBOOT_TCP_TIMEOUT_MS milliseconds. Resets the connection if
- * active so the board can accept new incoming connections.
+ * FASTBOOT_TCP_TIMEOUT_MS milliseconds while connected, or
+ * FASTBOOT_TCP_DOWNLOAD_TIMEOUT_MS milliseconds while downloading.
+ * Resets the connection if active so the board can accept new
+ * incoming connections.
  */
 static void fastboot_tcp_timeout_handler(void)
 {
@@ -86,9 +95,6 @@ static void fastboot_tcp_timeout_handler(void)
 		printf("\nFastboot TCP: connection timeout, resetting\n");
 		fastboot_tcp_reset();
 	}
-	/* Re-arm timer to keep monitoring */
-	net_set_timeout_handler(FASTBOOT_TCP_TIMEOUT_MS,
-				fastboot_tcp_timeout_handler);
 }
 
 static void fastboot_tcp_send_packet(u8 action, const uchar *data, unsigned int len)
@@ -131,9 +137,10 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 
 	/*
 	 * Reset timeout on every received packet so the timer only fires
-	 * when the connection has been truly silent for 5 seconds.
+	 * when the connection has been truly silent for FASTBOOT_TCP_TIMEOUT_MS ms
+	 * while connected, or FASTBOOT_TCP_DOWNLOAD_TIMEOUT_MS ms while downloading.
 	 */
-	net_set_timeout_handler(FASTBOOT_TCP_TIMEOUT_MS,
+	net_set_timeout_handler(fastboot_tcp_get_timeout(),
 				fastboot_tcp_timeout_handler);
 
 	curr_sport = sport;
@@ -295,8 +302,10 @@ void fastboot_tcp_start_server(void)
 	 * Arm the initial connection timeout. This timer is re-armed on
 	 * every received packet and triggers fastboot_tcp_timeout_handler()
 	 * if the connection goes silent for FASTBOOT_TCP_TIMEOUT_MS ms.
+	 * while connected, or FASTBOOT_TCP_DOWNLOAD_TIMEOUT_MS ms while
+	 * downloading.
 	 */
-	net_set_timeout_handler(FASTBOOT_TCP_TIMEOUT_MS,
+	net_set_timeout_handler(fastboot_tcp_get_timeout(),
 				fastboot_tcp_timeout_handler);
 
 	tcp_set_tcp_handler(fastboot_tcp_handler_ipv4);
