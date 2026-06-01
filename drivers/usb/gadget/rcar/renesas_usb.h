@@ -273,7 +273,7 @@ struct renesas_usbhs_driver_param {
 	u32 has_otg:1; /* for controlling PWEN/EXTLP */
 	u32 has_sudmac:1; /* for SUDMAC */
 	u32 has_usb_dmac:1; /* for USB-DMAC */
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_R9A08G046) || defined(CONFIG_ARCH_RZMPU)
 	u32 has_cnen:1;
 	u32 cfifo_byte_addr:1;	/* CFIFO is byte addressable */
 #endif
@@ -282,7 +282,7 @@ struct renesas_usbhs_driver_param {
 
 #define USBHS_TYPE_RCAR_GEN2	1
 #define USBHS_TYPE_RCAR_GEN3	2
-#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_ARCH_RZMPU)
+#if defined(CONFIG_R9A07G044L) || defined(CONFIG_R9A07G044C) || defined(CONFIG_R9A07G043U) || defined(CONFIG_R9A07G054L) || defined(CONFIG_R9A08G046) || defined(CONFIG_ARCH_RZMPU)
 #define USBHS_TYPE_G2L		5
 #endif
 
@@ -451,7 +451,12 @@ static inline void *phy_get_drvdata(struct phy *phy)
 #define RCAR3_PHY_DEVICE "RZG2L-PHY "
 #define USBHS_BASE	0x11c60000
 #define RCAR3_USBHS_DEVICE "RZG2L-USBHS "
-#else /* !defined(CONFIG_R9A07G044L) */
+#elif defined(CONFIG_R9A08G046)
+#define PHY_BASE	0x11e10200
+#define RCAR3_PHY_DEVICE "RZG3L-PHY "
+#define USBHS_BASE	0x11e30000
+#define RCAR3_USBHS_DEVICE "RZG3L-USBHS "
+#else
 #define PHY_BASE	0xee080200
 #define RCAR3_PHY_DEVICE "R-CAR3-PHY "
 #define USBHS_BASE	0xe6590000

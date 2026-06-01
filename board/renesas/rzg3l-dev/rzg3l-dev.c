@@ -161,8 +161,7 @@ struct efi_capsule_update_info update_info = {
 
 #define USBPHY_BASE		(0x11e00000)
 #define USB0_BASE		(0x11e10000)
-#define USB1_BASE		(0x11e30000)
-#define USBF_BASE		(0x11e20000)
+#define USBF_BASE		(0x11e30000)
 #define USBPHY_RESET		(USBPHY_BASE + 0x000u)
 #define COMMCTRL		0x800
 #define HcRhDescriptorA		0x048
@@ -276,6 +275,21 @@ void s_init(void)
 
 static void board_usb_init(void)
 {
+	/*Enable USB*/
+	*(volatile u32 *)(CPG_RST_USB) = 0x001F001F;
+	while ((*(volatile u32 *)(CPG_RSTMON_USB) & 0x0000001F) != 0x0) {}
+	*(volatile u32 *)(CPG_CLKON_USB) = 0x1F001F;
+	while ((*(volatile u32 *)(CPG_CLKMON_USB) & 0x0000001F) != 0x0000001F) {}
+
+	*(volatile u32 *)(USB0_BASE + AHB_BUS_CTR) = 0x02;
+	/*Enable 2 USB ports*/
+	*(volatile u32 *)(USBPHY_RESET) = 0x00001000u;
+	/*USB0 is HOST*/
+	*(volatile u32 *)(USB0_BASE + COMMCTRL) = 0;
+	/* Set USBPHY normal operation (Function only) */
+	*(volatile u16 *)(USBF_BASE + LPSTS) |= (0x1u << 14);	/* USBPHY.SUSPM = 1 (func only) */
+	/* Overcurrent is not supported */
+	*(volatile u32 *)(USB0_BASE + HcRhDescriptorA) |= (0x1u << 12); /* NOCP = 1 */
 }
 
 int board_early_init_f(void)
