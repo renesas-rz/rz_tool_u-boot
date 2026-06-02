@@ -196,6 +196,16 @@ static void getvar_crc32(char *var_parameter, char *response)
 		return;
 	}
 
+	if (!strcmp(var_parameter, "wic")) {
+		uint32_t crc_val;
+
+		memcpy(&crc_val, (void *)CONFIG_FASTBOOT_BUF_ADDR, sizeof(crc_val));
+		crc_val = be32_to_cpu(crc_val);
+
+		fastboot_response("OKAY", response, "%08x", crc_val);
+		return;
+	}
+
 	snprintf(env_name, sizeof(env_name), "crc32-%s", var_parameter);
 	val = env_get(env_name);
 	if (val)
