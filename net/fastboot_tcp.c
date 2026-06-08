@@ -238,7 +238,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 			remains_to_download = remains_to_download <= len ? remains_to_download : len;
 			if (remains_to_download > 0) {
 				if (fastboot_data_download(pkt, remains_to_download, response)) {
-					printf("Fastboot downloading error. Data remain: %u received: %u\n",
+					printf("Fastboot downloading error. Data remain: %u received: %llu\n",
 					       fastboot_data_remaining(), remains_to_download);
 					fastboot_tcp_reset();
 					goto out;
