@@ -187,7 +187,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 		fastboot_tcp_send_packet(TCP_ACK | TCP_PUSH, NULL, 0);
 		strlcpy(command, pkt, len + 1);
 
-		if (!strncmp(command, "flash:", 6))
+		if (!strncmp(command, "flash:", 6) || !strncmp(command, "oem run:", 8))
 			net_set_timeout_handler(FASTBOOT_TCP_LONG_TIMEOUT_MS,
 					fastboot_tcp_timeout_handler);
 
