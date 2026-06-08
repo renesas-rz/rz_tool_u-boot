@@ -808,7 +808,9 @@ void update_bootloader_to_eMMC(void)
 	uint32_t crc_val = 0;
 	int cmd_ret = 1;
 	size_t fip_address;
+	char buf[16];
 
+	/* Write BL2 */
 	if (fs_set_blk_dev("mmc", "0:1", FS_TYPE_FAT)) {
 		printf("Cannot open FAT on mmc 0:1\n");
 	} else {
@@ -826,18 +828,38 @@ void update_bootloader_to_eMMC(void)
 		}
 	}
 
-	if (cmd_ret == 0)
-		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC, &crc_val);
-	if (cmd_ret == 0)
-	{
-		cmd_ret = run_command(CMD_UPDATE_BOOTLOADER_FIP, 0);
-		if (cmd_ret == 0)
-			cmd_ret = write_to_eMMC_bootpart(fip_address, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to run bl2 command\n");
+		return;
 	}
 
-	if (!cmd_ret) {
-		printf("Succeeded in updating eMMC bootloader\n");
-	} else {
-		printf("Failed in updating eMMC bootloader\n");
+	cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to write BL2 to eMMC\n");
+		return;
 	}
+
+	snprintf(buf, sizeof(buf), "%08x", crc_val);
+	if (env_set("crc32-bl2", buf))
+		printf("Failed to set env crc32-bl2\n");
+
+	/* Write FIP */
+	cmd_ret = run_command(CMD_UPDATE_BOOTLOADER_FIP, 0);
+	if (cmd_ret) {
+		printf("Failed to run fip command\n");
+		return;
+	}
+
+	cmd_ret = write_to_eMMC_bootpart(fip_address, &crc_val);
+	if (cmd_ret) {
+		printf("Failed to write FIP to eMMC\n");
+		return;
+	}
+
+	snprintf(buf, sizeof(buf), "%08x", crc_val);
+	if (env_set("crc32-fip", buf))
+		printf("Failed to set env crc32-fip\n");
+
+	printf("Succeeded in updating eMMC bootloader\n");
+	return;
 }
