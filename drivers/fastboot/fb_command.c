@@ -592,9 +592,11 @@ static void __maybe_unused oem_board(char *cmd_parameter, char *response)
  * @cmd_parameter: Pointer to command parameter
  * @response: Pointer to fastboot response buffer
  */
-static void oem_emmcupdate(char * cmd_parameter, char *response)
+static void oem_emmcupdate(char *cmd_parameter, char *response)
 {
 	int cmd_ret = 1;
+	uint32_t crc_val = 0;
+	char *env_name = NULL;
 
 	if (!cmd_parameter) {
 		fastboot_fail("Expected command parameter", response);
@@ -607,13 +609,20 @@ static void oem_emmcupdate(char * cmd_parameter, char *response)
 		return;
 	}
 
-	if (!strcmp(cmd_parameter, "writebl2"))
-		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC);
+	if (!strcmp(cmd_parameter, "writebl2")) {
+		cmd_ret = write_to_eMMC_bootpart(BL2_ADD_SAVE_TO_EMMC, &crc_val);
+		env_name = "crc32-bl2";
+	}
 
-	if (!strcmp(cmd_parameter, "writefip"))
-		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_SAVE_TO_EMMC);
+	if (!strcmp(cmd_parameter, "writefip")) {
+		cmd_ret = write_to_eMMC_bootpart(FIP_ADD_SAVE_TO_EMMC, &crc_val);
+		env_name = "crc32-fip";
+	}
 
 	if (!cmd_ret) {
+		char buf[16];
+		snprintf(buf, sizeof(buf), "%08x", crc_val);
+		env_set(env_name, buf);
 		fastboot_okay(NULL, response);
 	} else {
 		printf("ERROR %d when running command %s\n", cmd_ret, cmd_parameter);
