@@ -122,7 +122,7 @@ static void fastboot_tcp_handler_ipv4(uchar *pkt, u16 dport,
 				      u32 tcp_seq_num, u32 tcp_ack_num,
 				      u8 action, unsigned int len)
 {
-	int remains_to_download;
+	u64 remains_to_download;
 	int fastboot_command_id;
 	u64 command_size;
 	bool has_data = len != 0;
