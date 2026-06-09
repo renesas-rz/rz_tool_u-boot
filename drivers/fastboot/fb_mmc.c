@@ -19,6 +19,7 @@
 #include <linux/compat.h>
 #include <android_image.h>
 #include <asm/io.h>
+#include <u-boot/crc.h>
 
 #define BOOT_PARTITION_NAME "boot"
 
@@ -723,7 +724,7 @@ void fastboot_mmc_erase(const char *cmd, char *response)
  *
  * @blk_start: Start block
  */
-int write_to_eMMC_bootpart(size_t blk_start)
+int write_to_eMMC_bootpart(size_t blk_start, uint32_t *out_checksum)
 {
 	size_t blk_count = 0;
 	size_t wrote = 0;
@@ -772,12 +773,25 @@ int write_to_eMMC_bootpart(size_t blk_start)
 		" to eMMC Bootloaders\n", blk_start, blk_count, (size_t)filesize);
 	wrote = blk_dwrite(dev_desc, blk_start, blk_count, buffer);
 	debug("%zu blocks were written\n", wrote);
-	unmap_physmem(buffer, filesize);
 
 	if (wrote != blk_count) {
 		printf("MMC write error (count=%zu, wrote=%zu)\n", blk_count, wrote);
 		return -1;
 	}
+
+	memset(buffer, 0, filesize);
+	size_t read_count = blk_dread(dev_desc, blk_start, blk_count, buffer);
+
+	if (read_count != blk_count) {
+		printf("MMC Read-back error for verification!\n");
+		unmap_physmem(buffer, filesize);
+		return -1;
+	}
+
+	uint32_t checksum = crc32(0, (unsigned char *)buffer, filesize);
+	*out_checksum = checksum;
+
+	unmap_physmem(buffer, filesize);
 
 	/* Switch back to user HW partition to boot */
 	if (mmc_switch_part(mmc_dev, MMC_DEFAULT_PARTITION)) {
@@ -785,7 +799,7 @@ int write_to_eMMC_bootpart(size_t blk_start)
 		return -1;
 	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -799,16 +813,17 @@ int write_to_eMMC_bootpart(size_t blk_start)
 int update_bootloader_to_eMMC(const char *bl2_cmd, size_t bl2_add, const char *fip_cmd, size_t fip_add)
 {
 	/* Start update bootloader from the WIC image */
+	uint32_t crc_val = 0;
 	int cmd_ret = 1;
 	cmd_ret = run_command(bl2_cmd, 0);
 	if (cmd_ret == 0)
-		cmd_ret = write_to_eMMC_bootpart(bl2_add);
+		cmd_ret = write_to_eMMC_bootpart(bl2_add, &crc_val);
 
 	if (cmd_ret == 0)
 	{
 		cmd_ret = run_command(fip_cmd, 0);
 		if (cmd_ret == 0)
-			cmd_ret = write_to_eMMC_bootpart(fip_add);
+			cmd_ret = write_to_eMMC_bootpart(fip_add, &crc_val);
 	}
 
 	if (!cmd_ret) {

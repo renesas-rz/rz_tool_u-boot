@@ -21,6 +21,8 @@ static void getvar_serialno(char *var_parameter, char *response);
 static void getvar_version_baseband(char *var_parameter, char *response);
 static void getvar_product(char *var_parameter, char *response);
 static void getvar_platform(char *var_parameter, char *response);
+static void getvar_crc32_bl2(char *var_parameter, char *response);
+static void getvar_crc32_fip(char *var_parameter, char *response);
 static void getvar_current_slot(char *var_parameter, char *response);
 static void getvar_has_slot(char *var_parameter, char *response);
 static void getvar_partition_type(char *part_name, char *response);
@@ -63,6 +65,14 @@ static const struct {
 	}, {
 		.variable = "platform",
 		.dispatch = getvar_platform,
+		.list = true
+	}, {
+		.variable = "crc32-bl2",
+		.dispatch = getvar_crc32_bl2,
+		.list = true
+	}, {
+		.variable = "crc32-fip",
+		.dispatch = getvar_crc32_fip,
 		.list = true
 	}, {
 		.variable = "current-slot",
@@ -179,6 +189,26 @@ static void getvar_platform(char *var_parameter, char *response)
 		fastboot_okay(p, response);
 	else
 		fastboot_fail("platform not set", response);
+}
+
+static void getvar_crc32_bl2(char *var_parameter, char *response)
+{
+	const char *p = env_get("crc32-bl2");
+
+	if (p)
+		fastboot_okay(p, response);
+	else
+		fastboot_fail("crc32-bl2 not set", response);
+}
+
+static void getvar_crc32_fip(char *var_parameter, char *response)
+{
+	const char *p = env_get("crc32-fip");
+
+	if (p)
+		fastboot_okay(p, response);
+	else
+		fastboot_fail("crc32-fip not set", response);
 }
 
 static void getvar_current_slot(char *var_parameter, char *response)
