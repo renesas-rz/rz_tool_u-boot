@@ -3,7 +3,21 @@
 # Script to build U-Boot and TF-A and generate FIP files for RZ/G3S (SMARC).
 #
 
+set -e
+
 WORKDIR=${1-`pwd`/../..}
+
+#======DEVICE======
+PLATFORM=g3s
+BOARD=smarc
+PMIC=
+if [[ "${PLATFORM}" = "g2l" && -n "${PMIC}" ]]; then
+	TFA_BOARD=smarc_pmic_2
+	TFA_PLAT=${PLATFORM}_pmic
+else
+	TFA_BOARD=${BOARD}
+	TFA_PLAT=${PLATFORM}
+fi
 
 #======INPUT=======
 UBOOT_DIR=$WORKDIR/rz_tool_u-boot
@@ -11,68 +25,32 @@ TFA_DIR=$WORKDIR/rzg_trusted-firmware-a
 
 #======OUTPUT=======
 OUTPUT_DIR=$WORKDIR/output/
-rm -rf $OUTPUT_DIR
+rm -rvf $OUTPUT_DIR
 mkdir $OUTPUT_DIR
 
-#======GCC_10.3=======
-./gcc_10.3.sh
-
 #======SETUP=======
-
 export ARCH=arm64
 source gcc_10.3.sh
 
 #======UBOOT=======
 cd ${UBOOT_DIR}
 make clean
-make smarc-rzg3s_defconfig
+make ${BOARD}-rz${PLATFORM}_defconfig
 make -j$(nproc)
-cd -
-
-if [ -f "${UBOOT_DIR}/u-boot.bin" ]; then
-	echo "### Build u-boot successfully!! ###"
-else
-	echo "### Build u-boot failed!! ###"
-	exit 0
-fi
 
 #======TFA========
 cd ${TFA_DIR}
-make PLAT=g3s realclean BOARD=smarc
-make PLAT=g3s BOARD=smarc PLAT_SYSTEM_SUSPEND=vbat  bl2 bl31 bptool fiptool
-cd -
+make PLAT=${PLATFORM} BOARD=${TFA_BOARD} realclean
+make PLAT=${PLATFORM} BOARD=${TFA_BOARD} BL33=${UBOOT_DIR}/u-boot.bin bl2 fip bptool pkg
 
-#=======BUILD==========
+# #=======TFA_OUTPUT==========
 BUILD_TYPE="release"
-TFA_OUTPUT=${TFA_DIR}/build/g3s/${BUILD_TYPE}
-BPTOOL=${TFA_DIR}/tools/renesas/bptool
-FIPTOOL=${TFA_DIR}/tools/fiptool/fiptool
+TFA_OUTPUT=${TFA_DIR}/build/${PLATFORM}/${BUILD_TYPE}
 
-${BPTOOL} ${TFA_OUTPUT}/bl2.bin ${TFA_OUTPUT}/bp_mmc.bin 0xA3000 mmc
-cat ${TFA_OUTPUT}/bp_mmc.bin ${TFA_OUTPUT}/bl2.bin > ${TFA_OUTPUT}/bl2_bp_mmc.bin
-objcopy -I binary -O srec --adjust-vma=0xA1E00 --srec-forceS3 ${TFA_OUTPUT}/bl2_bp_mmc.bin  ${TFA_OUTPUT}/bl2_bp_mmc.srec
-${FIPTOOL} create --align 16 --soc-fw ${TFA_OUTPUT}/bl31.bin --nt-fw ${UBOOT_DIR}/u-boot.bin ${TFA_OUTPUT}/fip.bin
-objcopy -I binary -O srec --adjust-vma=0x0000 --srec-forceS3 ${TFA_OUTPUT}/fip.bin ${TFA_OUTPUT}/fip.srec
-
-if [ -f "${TFA_OUTPUT}/bl2_bp_mmc.srec" ] && [ -f "${TFA_OUTPUT}/fip.srec" ]; then
-	echo "### Generated FIP files successfully!! ###"
-	ls -alh ${TFA_OUTPUT}/*.srec
-else
-	echo "### Generated FIP files failed!! ###"
-	exit 0
-fi
-
-cp ${TFA_OUTPUT}/bl2_bp_mmc.srec ${OUTPUT_DIR}bl2_bp_mmc-smarc-rzg3s.srec
-cp ${TFA_OUTPUT}/fip.srec ${OUTPUT_DIR}fip-smarc-rzg3s.srec
-cp ${TFA_OUTPUT}/bl2_bp_mmc.bin ${OUTPUT_DIR}bl2_bp_mmc-smarc-rzg3s.bin
-cp ${TFA_OUTPUT}/fip.bin ${OUTPUT_DIR}fip-smarc-rzg3s.bin
-
-if [ -f "${OUTPUT_DIR}bl2_bp_mmc-smarc-rzg3s.srec" ] && [ -f "${OUTPUT_DIR}fip-smarc-rzg3s.srec" ]; then
-	echo "### Copied FIP files successfully!! ###"
-	ls -alh ${OUTPUT_DIR}*.srec
-else
-	echo "### Copied FIP files failed!! ###"
-	exit 0
-fi
+cp ${TFA_OUTPUT}/bl2_bp_mmc.srec ${OUTPUT_DIR}/bl2_bp_mmc-${BOARD}-rz${TFA_PLAT}.srec
+cp ${TFA_OUTPUT}/fip.srec ${OUTPUT_DIR}/fip-${BOARD}-rz${TFA_PLAT}.srec
+cp ${TFA_OUTPUT}/bl2_bp_mmc.bin ${OUTPUT_DIR}/bl2_bp_mmc-${BOARD}-rz${TFA_PLAT}.bin
+cp ${TFA_OUTPUT}/fip.bin ${OUTPUT_DIR}/fip-${BOARD}-rz${TFA_PLAT}.bin
+ls -alh ${OUTPUT_DIR}*
 
 date
