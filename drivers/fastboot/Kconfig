@@ -266,6 +266,12 @@ config FASTBOOT_OEM_UPDATE_BOOTLOADER_FROM_PC
       Allow fastboot command 'oem emmcupdate' to update
       the bootloader image via USB fastboot.
 
+config FASTBOOT_OEM_CHECKSUM_FLASH_IMAGE_FROM_PC
+	bool "Enable OEM checksum flash image from PC"
+	help
+	  Allow fastboot command 'oem emmcchecksum' to checksum
+	  the flash image via fastboot.
+
 endif # FASTBOOT
 
 endmenu

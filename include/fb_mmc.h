@@ -71,3 +71,11 @@ int write_to_eMMC_bootpart(size_t blk_start, uint32_t *out_checksum);
  * update_bootloader_to_eMMC(void) - Update bootloader for eMMC from the WIC image
  */
 void update_bootloader_to_eMMC(void);
+
+/**
+ * checksum_wic_img() - Calculate CRC32 checksum of flashed WIC image
+ *
+ * @filesize: Size of the flashed WIC image in bytes
+ * @out_checksum: Pointer to store the calculated CRC32 value
+ */
+int checksum_wic_img(uint64_t filesize, uint32_t *out_checksum);

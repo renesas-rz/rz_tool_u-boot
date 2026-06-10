@@ -863,3 +863,90 @@ void update_bootloader_to_eMMC(void)
 	printf("Succeeded in updating eMMC bootloader\n");
 	return;
 }
+
+/**
+ * checksum_wic_img() - Calculate CRC32 checksum of flashed WIC image
+ *
+ * @filesize: Size of the flashed WIC image in bytes
+ * @out_checksum: Pointer to store the calculated CRC32 value
+ */
+int checksum_wic_img(uint64_t filesize, uint32_t *out_checksum)
+{
+	struct mmc *mmc_dev = NULL;
+	struct blk_desc *dev_desc = NULL;
+	uint64_t chunk_bytes = 0;
+	lbaint_t offset_blk = 0;
+	lbaint_t remaining_blk = 0;
+	lbaint_t chunk_blk = 0;
+	lbaint_t read_count = 0;
+	lbaint_t buf_blk_count = 0;
+	void *buffer = NULL;
+	uint32_t crc = 0;
+
+	if (!filesize) {
+		printf("invalid file size\n");
+		return -EINVAL;
+	}
+
+	mmc_dev = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!mmc_dev) {
+		printf("MMC device %d not found\n", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+		return -ENODEV;
+	}
+
+	dev_desc = mmc_get_blk_desc(mmc_dev);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		return -EIO;
+	}
+
+	buffer = map_physmem((phys_addr_t)CONFIG_FASTBOOT_BUF_ADDR,
+			     CONFIG_FASTBOOT_BUF_SIZE, MAP_WRBACK);
+	if (!buffer) {
+		printf("failed to map fastboot buffer\n");
+		return -ENOMEM;
+	}
+
+	/* number of MMC blocks that fit in fastboot buffer */
+	buf_blk_count = CONFIG_FASTBOOT_BUF_SIZE / dev_desc->blksz;
+	if (!buf_blk_count) {
+		unmap_physmem(buffer, CONFIG_FASTBOOT_BUF_SIZE);
+		return -EINVAL;
+	}
+
+	/* total blocks to read */
+	remaining_blk = DIV_ROUND_UP(filesize, dev_desc->blksz);
+
+	while (remaining_blk > 0) {
+		/* read at most buf_blk_count blocks at a time */
+		chunk_blk = min(remaining_blk, buf_blk_count);
+
+		read_count = blk_dread(dev_desc, offset_blk, chunk_blk, buffer);
+		if (read_count != chunk_blk) {
+			printf("MMC read error at block " LBAFU "\n", offset_blk);
+			unmap_physmem(buffer, CONFIG_FASTBOOT_BUF_SIZE);
+			return -EIO;
+		}
+
+		/*
+		 * For the last chunk, only include the actual remaining
+		 * bytes to avoid checksumming beyond the image boundary.
+		 */
+		if (remaining_blk <= buf_blk_count)
+			chunk_bytes = filesize - ((uint64_t)offset_blk * dev_desc->blksz);
+		else
+			chunk_bytes = (uint64_t)chunk_blk * dev_desc->blksz;
+
+		/* accumulate CRC32 across chunks using previous crc as seed */
+		crc = crc32(crc, (unsigned char *)buffer, chunk_bytes);
+
+		offset_blk += chunk_blk;
+		remaining_blk -= chunk_blk;
+	}
+
+	unmap_physmem(buffer, CONFIG_FASTBOOT_BUF_SIZE);
+	*out_checksum = crc;
+
+	printf("WIC image CRC32: %08x\n", *out_checksum);
+	return 0;
+}
