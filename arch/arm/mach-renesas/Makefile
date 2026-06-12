@@ -17,8 +17,9 @@ obj-$(CONFIG_R9A09G055MA3GBG) += lowlevel_init_gen3.o memmap-r9a09g055ma3gbg.o
 obj-$(CONFIG_RZ_G2) += cpu_info-rzg.o
 obj-$(CONFIG_RZG2L) += cpu_info-rzg2l.o memmap-rzg2l.o
 
-ifeq ($(CONFIG_R9A07G044L),y)
-obj-$(CONFIG_R9A07G044L) += cpu_info-rzg2l.o
+# G2L CPU info
+ifneq ($(CONFIG_R9A07G044L),)
+obj-y += cpu_info-rz.o
 endif
 
 ifneq ($(CONFIG_R8A779A0),)

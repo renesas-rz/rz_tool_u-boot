@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021,2023 Renesas Electronics Corporation
+ *
+ */
+
+#include <mach/renesas.h>
+#include <asm/io.h>
+#include <linux/libfdt.h>
+#include <stdio.h>
+
+/* DEBUG: Temporary logging - remove before final commit */
+#define CPU_INFO_DEBUG 0
+
+/* SYSC register addresses vary by platform family */
+#define SYSC_LSI_DEVID		(0x11020000 + 0xA04)	 //g2l
+
+/* DEVID register: bits 31:28 = revision, bits 27:0 = fixed product ID */
+#define DEVID_MASK			0x0FFFFFFF
+
+/* If the firmware passed a device tree, use it for soc identification. */
+extern u64 rcar_atf_boot_args[];
+
+/* CPU information table */
+struct tfa_info {
+	const char *soc_name;
+	const char *cpu_name;
+	u32 cpu_type;
+};
+
+static const struct tfa_info tfa_info[] = {
+	{ "renesas,r9a07g044l", "R9A07G044L", RENESAS_CPU_TYPE_R9A07G044L }, //g2l
+};
+
+static const struct tfa_info invalid_tfa_info = { NULL, "(invalid)", 0 };
+
+u32 get_devid(void)
+{
+	u32 devid = readl(SYSC_LSI_DEVID);
+#if CPU_INFO_DEBUG
+	printf("DEBUG: get_devid() raw=0x%08x from addr=0x%08x\n", devid, SYSC_LSI_DEVID);
+#endif
+	return devid;
+}
+
+static const struct tfa_info *get_tfa_info(void)
+{
+	void *atf_fdt_blob = (void *)(rcar_atf_boot_args[1]);
+	
+	if (atf_fdt_blob == NULL) {
+		#if CPU_INFO_DEBUG
+		printf("DEBUG: get_tfa_info() no ATF FDT blob pointer\n");	
+		#endif
+		return NULL;
+	}
+
+	if (fdt_magic(atf_fdt_blob) == FDT_MAGIC) {
+		unsigned int i;
+		for (i = 0; i < ARRAY_SIZE(tfa_info); i++) {
+			if (!fdt_node_check_compatible(atf_fdt_blob, 0,tfa_info[i].soc_name)){
+				#if CPU_INFO_DEBUG
+				printf("DEBUG: get_tfa_info() found matching ATF FDT compatible: %s\n", tfa_info[i].soc_name);	
+				#endif
+				return &tfa_info[i];
+			}
+		}
+	}
+	#if CPU_INFO_DEBUG
+		printf("DEBUG: get_tfa_info() no matching ATF FDT compatible\n");	
+		#endif
+	return NULL;
+}
+
+static const struct tfa_info *get_dev_info(void)
+{
+	int i = 0;
+	// Get the CPU type by masking off the revision bits 27:0
+	u32 cpu_type = get_devid() & DEVID_MASK;
+
+#if CPU_INFO_DEBUG
+	printf("DEBUG: get_dev_info() masked cpu_type=0x%08x\n", cpu_type);
+	u32 rev = renesas_get_cpu_rev_integer();
+	printf("DEBUG:   CPU revision=0x%08x\n", rev);
+#endif
+	for (i = 0; i < ARRAY_SIZE(tfa_info); i++) {
+#if CPU_INFO_DEBUG
+		printf("DEBUG:   comparing with tfa_info[%d].cpu_type=0x%08x (%s)\n",
+		       i, tfa_info[i].cpu_type, tfa_info[i].cpu_name);
+#endif
+		if (tfa_info[i].cpu_type == cpu_type) {
+#if CPU_INFO_DEBUG
+			printf("DEBUG:   MATCH found: %s\n", tfa_info[i].cpu_name);
+#endif
+			return &tfa_info[i];
+		}
+	}
+#if CPU_INFO_DEBUG
+	printf("DEBUG:   NO MATCH - returning invalid\n");
+#endif
+	return &invalid_tfa_info;
+}
+
+const u8 *rzg_get_cpu_name(void)
+{
+	const struct tfa_info *tfa_info = get_tfa_info();
+	if( tfa_info != NULL){
+		return tfa_info->cpu_name;
+	}
+	return get_dev_info()->cpu_name;
+}
+
+u32 renesas_get_cpu_type(void)
+{
+	const struct tfa_info *tfa_info = get_tfa_info();
+	if( tfa_info != NULL){
+		return tfa_info->cpu_type;
+	}
+	return get_dev_info()->cpu_type;
+}
+
+u32 renesas_get_cpu_rev_integer(void)
+{
+	u32 val = (get_devid() >> 28) + 1;
+#if CPU_INFO_DEBUG
+	printf("DEBUG: renesas_get_cpu_rev_integer() returning 0x%08x\n", val);
+#endif
+	return val;
+}
+
+u32 renesas_get_cpu_rev_fraction(void)
+{
+	u32 val = 0;
+#if CPU_INFO_DEBUG
+	printf("DEBUG: renesas_get_cpu_rev_fraction() returning 0x%x\n", val);
+#endif
+	return val;
+}
