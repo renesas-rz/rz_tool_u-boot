@@ -44,7 +44,6 @@ static void oem_bootbus(char *, char *);
 static void oem_console(char *, char *);
 static void oem_board(char *, char *);
 static void oem_emmcupdate(char *, char *);
-static void oem_emmcchecksum(char *, char *);
 static void run_ucmd(char *, char *);
 static void run_acmd(char *, char *);
 
@@ -123,10 +122,6 @@ static const struct {
 	[FASTBOOT_COMMAND_OEM_UPDATE_BOOTLOADER_FROM_PC] = {
 		.command = "oem emmcupdate",
 		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_OEM_UPDATE_BOOTLOADER_FROM_PC, (oem_emmcupdate), (NULL))
-	},
-	[FASTBOOT_COMMAND_OEM_CHECKSUM_FLASH_IMAGE_FROM_PC] = {
-		.command = "oem emmcchecksum",
-		.dispatch = CONFIG_IS_ENABLED(FASTBOOT_OEM_CHECKSUM_FLASH_IMAGE_FROM_PC, (oem_emmcchecksum), (NULL))
 	},
 	[FASTBOOT_COMMAND_UCMD] = {
 		.command = "UCmd",
@@ -632,45 +627,4 @@ static void oem_emmcupdate(char *cmd_parameter, char *response)
 		printf("ERROR %d when running command %s\n", cmd_ret, cmd_parameter);
 		fastboot_fail("Failed to update eMMC bootloader", response);
 	}
-}
-
-/**
- * oem_emmcchecksum() - Execute the OEM emmcchecksum command
- *
- * @cmd_parameter: Pointer to command parameter
- * @response: Pointer to fastboot response buffer
- */
-static void oem_emmcchecksum(char *cmd_parameter, char *response)
-{
-	int cmd_ret;
-	uint32_t crc_val = 0;
-	uint64_t filesize;
-	char buf[16];
-
-	if (!cmd_parameter) {
-		fastboot_fail("Missing file size", response);
-		return;
-	}
-
-	filesize = simple_strtoull(cmd_parameter, NULL, 0);
-	if (!filesize) {
-		fastboot_fail("Invalid file size", response);
-		return;
-	}
-
-	cmd_ret = checksum_wic_img(filesize, &crc_val);
-	if (cmd_ret) {
-		printf("Failed to calculate WIC checksum: %d\n", cmd_ret);
-		fastboot_fail("Failed to checksum", response);
-		return;
-	}
-
-	snprintf(buf, sizeof(buf), "%08x", crc_val);
-	if (env_set("crc32-wic_vlpv3", buf)) {
-		printf("Failed to set env crc32-wic_vlpv3\n");
-		fastboot_fail("Failed to store checksum", response);
-		return;
-	}
-
-	fastboot_okay(NULL, response);
 }
