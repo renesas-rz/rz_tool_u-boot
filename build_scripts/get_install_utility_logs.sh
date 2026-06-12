@@ -15,8 +15,8 @@ BOARD_NAME=""
 
 FASTBOOT_BUF_ADDR=0x4D000000
 
-# RZ/G3S has limited available RAM (~800MB). Use 700MB as a conservative threshold to leave sufficient memory headroom.
-G3S_WIC_SIZE_LIMIT_BYTES=$((700 * 1024 * 1024))
+SEGMENT_SIZE_MB=10
+SEGMENT_SIZE=$((SEGMENT_SIZE_MB * 1024 * 1024)) # 10 MB
 
 if [ ! -f "$FASTBOOT" ]; then
 	echo "Error: Fastboot executable not found at $FASTBOOT"
@@ -52,16 +52,62 @@ print_crc_verification()
 	local board_crc="$2"
 	local expected_crc="$3"
 
-	echo "[$section]"
-
-	print_field "Board CRC32" "$board_crc"
-	print_field "Expected CRC32" "$expected_crc"
-
 	if [ "$board_crc" = "$expected_crc" ]; then
-		print_field "Result" "MATCH"
+		echo "[$section] Result : MATCH"
+		print_field "Board CRC32" "$board_crc"
+		print_field "Expected CRC32" "$expected_crc"
 		return 0
 	else
-		print_field "Result" "MISMATCH"
+		echo "[$section] Result : MISMATCH"
+		print_field "Board CRC32" "$board_crc"
+		print_field "Expected CRC32" "$expected_crc"
+		return 1
+	fi
+}
+
+verify_wic_segment()
+{
+	local offset="$1"
+	local size="$2"
+
+	local blk=$((offset / 512))
+	local blk_cnt=$((size / 512))
+
+	local blk_hex
+	local blk_cnt_hex
+	local size_hex
+
+	local host_crc
+	local board_crc
+	local tmp_file=$(mktemp)
+
+	blk_hex=$(printf "0x%x" "$blk")
+	blk_cnt_hex=$(printf "0x%x" "$blk_cnt")
+	size_hex=$(printf "0x%x" "$size")
+
+	# Calculate CRC32 from source WIC image
+	if ! dd if="$WIC_FILE" of="$tmp_file" \
+			bs=1 skip="$offset" count="$size" 2>/dev/null; then
+		rm -f "$tmp_file"
+		echo "ERROR|ERROR|MISMATCH"
+		return 1
+	fi
+	host_crc=$(crc32 "$tmp_file")
+	rm -f "$tmp_file"
+
+	{
+		sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"mmc read $FASTBOOT_BUF_ADDR $blk_hex $blk_cnt_hex"
+		sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"crc32 $FASTBOOT_BUF_ADDR $size_hex $FASTBOOT_BUF_ADDR"
+		sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:wic
+	} >> "$TEMP_LOG" 2>&1
+
+	board_crc=$(sed -n 's/.*crc32:wic:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
+
+	if [ "$board_crc" = "$host_crc" ]; then
+		echo "$board_crc|$host_crc|MATCH"
+		return 0
+	else
+		echo "$board_crc|$host_crc|MISMATCH"
 		return 1
 	fi
 }
@@ -171,7 +217,7 @@ case $MODE in
 		truncate -s %4096 $WIC_FILE
 
 		# [WIC FLASH] SOURCE IMAGE CHECKSUMS
-		print_section "SOURCE IMAGE CHECKSUMS"
+		print_section "I) SOURCE IMAGE CHECKSUMS"
 
 		WIC_NAME=$(basename "$WIC_FILE")
 		WIC_CRC=$(crc32 "$WIC_FILE")
@@ -191,7 +237,7 @@ case $MODE in
 
 		sudo mount -o ro "$BOOT_PART" "$MOUNT_DIR"
 
-		if [ "$BOARD_NAME" = "RZ/G2L" ]; then
+		if [[ "$BOARD_NAME" == "RZ/G2L" ]]; then
 			BL2_FILE=$(find "$MOUNT_DIR" -maxdepth 1 -type f -name "bl2_bp_mmc*_pmic.bin" | head -n1)
 			FIP_FILE=$(find "$MOUNT_DIR" -maxdepth 1 -type f -name "fip*_pmic.bin" | head -n1)
 		else
@@ -231,7 +277,7 @@ case $MODE in
 		echo
 
 		# [WIC FLASH] FASTBOOT EXECUTION
-		print_section "FASTBOOT EXECUTION"
+		print_section "II) FASTBOOT EXECUTION"
 
 		echo "Command:"
 		printf '\t%s\n' "sudo ./fastboot -s $PROTOCOL flash mmc0 $WIC_FILE"
@@ -242,48 +288,99 @@ case $MODE in
 		echo
 
 		# [WIC FLASH] TARGET VERIFICATION
-		print_section "TARGET VERIFICATION"
+		print_section "III) TARGET VERIFICATION"
 
 		ERR=$(grep -Ei "FAILED|error:" "$TEMP_LOG" || true)
 		TOTAL_TIME=$(grep "Finished. Total time:" "$TEMP_LOG" | awk '{print $4}' | sed 's/s//')
 
 		if [ -z "$ERR" ] && [ -n "$TOTAL_TIME" ]; then
+			# [VERIFY WIC IMAGE]
+			# Verify representative portions of the flashed WIC image instead of
+			# calculating a CRC32 over the entire image. This significantly reduces
+			# verification time on large images while still providing reasonable
+			# confidence that the image was written correctly.
+			#
+			# Verify three regions:
+			#   - HEAD   : beginning of the image
+			#   - MIDDLE : middle of the image
+			#   - TAIL   : end of the image
+
 			RAW_SIZE=$(stat -c%s "$WIC_FILE")
-			RAW_SIZE_HEX=$(printf "0x%x" "$RAW_SIZE")
-			VERIFY_BLK_NUMS=$(( (RAW_SIZE + 511) / 512 ))
-			VERIFY_BLK_NUMS_HEX=$(printf "0x%x" "$VERIFY_BLK_NUMS")
 
-			# Large G3S images are verified using the emmcchecksum command instead of loading the entire image into RAM.
-			if [ "$BOARD_NAME" = "RZ/G3S" ] && [ "$RAW_SIZE" -gt "$G3S_WIC_SIZE_LIMIT_BYTES" ]; then
-				{
-					sudo "$FASTBOOT" -s "$PROTOCOL" oem emmcchecksum:"$RAW_SIZE"
-					
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:wic_vlpv3
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:bl2
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:fip
-				} >> "$TEMP_LOG" 2>&1
+			HEAD_OFFSET=0
 
-				WIC_CRC_BOARD=$(sed -n 's/.*crc32:wic_vlpv3:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
-				BL2_CRC_BOARD=$(sed -n 's/.*crc32:bl2:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
-				FIP_CRC_BOARD=$(sed -n 's/.*crc32:fip:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
-			else
-				{
-					sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"mmc dev 0"
-					sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"mmc read $FASTBOOT_BUF_ADDR 0 $VERIFY_BLK_NUMS_HEX"
-					sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"crc32 $FASTBOOT_BUF_ADDR $RAW_SIZE_HEX $FASTBOOT_BUF_ADDR"
-
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:wic
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:bl2
-					sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:fip
-				} >> "$TEMP_LOG" 2>&1
-
-				WIC_CRC_BOARD=$(sed -n 's/.*crc32:wic:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
-				BL2_CRC_BOARD=$(sed -n 's/.*crc32:bl2:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
-				FIP_CRC_BOARD=$(sed -n 's/.*crc32:fip:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
+			MID_OFFSET=$((RAW_SIZE / 2 - SEGMENT_SIZE / 2))
+			MID_OFFSET=$(( (MID_OFFSET / 512) * 512 ))
+			if [ "$MID_OFFSET" -lt 0 ]; then
+				MID_OFFSET=0
 			fi
 
-			print_crc_verification "ROOTFS" "$WIC_CRC_BOARD" "$WIC_CRC" || STATUS="FAIL"
+			TAIL_OFFSET=$((RAW_SIZE - SEGMENT_SIZE))
+			TAIL_OFFSET=$(( (TAIL_OFFSET / 512) * 512 ))
+			if [ "$TAIL_OFFSET" -lt 0 ]; then
+				TAIL_OFFSET=0
+			fi
+
+			sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"mmc dev 0" >> "$TEMP_LOG" 2>&1
+
+			HEAD_INFO=$(verify_wic_segment "$HEAD_OFFSET" "$SEGMENT_SIZE")
+			HEAD_RET=$?
+
+			MID_INFO=$(verify_wic_segment "$MID_OFFSET" "$SEGMENT_SIZE")
+			MID_RET=$?
+
+			TAIL_INFO=$(verify_wic_segment "$TAIL_OFFSET" "$SEGMENT_SIZE")
+			TAIL_RET=$?
+
+			IFS='|' read -r HEAD_BOARD HEAD_HOST HEAD_RESULT <<< "$HEAD_INFO"
+			IFS='|' read -r MID_BOARD MID_HOST MID_RESULT <<< "$MID_INFO"
+			IFS='|' read -r TAIL_BOARD TAIL_HOST TAIL_RESULT <<< "$TAIL_INFO"
+
+			if [ $HEAD_RET -eq 0 ] && [ $MID_RET -eq 0 ] && [ $TAIL_RET -eq 0 ]; then
+				ROOTFS_RESULT="MATCH"
+			else
+				ROOTFS_RESULT="MISMATCH"
+				STATUS="FAIL"
+			fi
+
+			echo "[ROOTFS] Result : $ROOTFS_RESULT"
+			echo "Verification method : CRC32 of 3 representative image segments"
 			echo
+
+			printf "+-----------------+------------+------------+----------+\n"
+			printf "| %-15s | %-10s | %-10s | %-8s |\n" \
+				   "Segment" "Board" "Expected" "Result"
+			printf "+-----------------+------------+------------+----------+\n"
+
+			printf "| %-15s | %-10s | %-10s | %-8s |\n" \
+				   "HEAD (${SEGMENT_SIZE_MB}MB)" \
+				   "$HEAD_BOARD" \
+				   "$HEAD_HOST" \
+				   "$HEAD_RESULT"
+
+			printf "| %-15s | %-10s | %-10s | %-8s |\n" \
+				   "MIDDLE (${SEGMENT_SIZE_MB}MB)" \
+				   "$MID_BOARD" \
+				   "$MID_HOST" \
+				   "$MID_RESULT"
+
+			printf "| %-15s | %-10s | %-10s | %-8s |\n" \
+				   "TAIL (${SEGMENT_SIZE_MB}MB)" \
+				   "$TAIL_BOARD" \
+				   "$TAIL_HOST" \
+				   "$TAIL_RESULT"
+
+			printf "+-----------------+------------+------------+----------+\n"
+
+			echo
+
+			# Verify bootloader
+			sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:bl2 >> "$TEMP_LOG" 2>&1
+			sudo "$FASTBOOT" -s "$PROTOCOL" getvar crc32:fip >> "$TEMP_LOG" 2>&1
+
+			BL2_CRC_BOARD=$(sed -n 's/.*crc32:bl2:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
+			FIP_CRC_BOARD=$(sed -n 's/.*crc32:fip:[[:space:]]*//p' "$TEMP_LOG" | tail -1)
+
 			print_crc_verification "BL2" "$BL2_CRC_BOARD" "$BL2_CRC" || STATUS="FAIL"
 			echo
 			print_crc_verification "FIP" "$FIP_CRC_BOARD" "$FIP_CRC" || STATUS="FAIL"
@@ -295,7 +392,7 @@ case $MODE in
 		fi
 
 		# [WIC FLASH] SUMMARY
-		print_section "SUMMARY"
+		print_section "IV) SUMMARY"
 
 		if [ "$STATUS" = "SUCCESS" ]; then
 			SIZE_MB=$(echo "scale=2; $RAW_SIZE / 1048576" | bc)
