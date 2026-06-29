@@ -87,10 +87,10 @@ verify_wic_segment()
 
 	# Calculate CRC32 from source WIC image
 	if ! dd if="$WIC_FILE" of="$tmp_file" \
-			bs=1 skip="$offset" count="$size" 2>/dev/null; then
+			bs=512 skip="$blk" count="$blk_cnt" 2>/dev/null; then
 		rm -f "$tmp_file"
 		echo "ERROR|ERROR|MISMATCH"
-		return 1
+		return 0
 	fi
 	host_crc=$(crc32 "$tmp_file")
 	rm -f "$tmp_file"
@@ -105,10 +105,8 @@ verify_wic_segment()
 
 	if [ "$board_crc" = "$host_crc" ]; then
 		echo "$board_crc|$host_crc|MATCH"
-		return 0
 	else
 		echo "$board_crc|$host_crc|MISMATCH"
-		return 1
 	fi
 }
 
@@ -324,19 +322,14 @@ case $MODE in
 			sudo "$FASTBOOT" -s "$PROTOCOL" oem run:"mmc dev 0" >> "$TEMP_LOG" 2>&1
 
 			HEAD_INFO=$(verify_wic_segment "$HEAD_OFFSET" "$SEGMENT_SIZE")
-			HEAD_RET=$?
-
 			MID_INFO=$(verify_wic_segment "$MID_OFFSET" "$SEGMENT_SIZE")
-			MID_RET=$?
-
 			TAIL_INFO=$(verify_wic_segment "$TAIL_OFFSET" "$SEGMENT_SIZE")
-			TAIL_RET=$?
 
 			IFS='|' read -r HEAD_BOARD HEAD_HOST HEAD_RESULT <<< "$HEAD_INFO"
 			IFS='|' read -r MID_BOARD MID_HOST MID_RESULT <<< "$MID_INFO"
 			IFS='|' read -r TAIL_BOARD TAIL_HOST TAIL_RESULT <<< "$TAIL_INFO"
 
-			if [ $HEAD_RET -eq 0 ] && [ $MID_RET -eq 0 ] && [ $TAIL_RET -eq 0 ]; then
+			if [ "$HEAD_RESULT" = "MATCH" ] && [ "$MID_RESULT" = "MATCH" ] && [ "$TAIL_RESULT" = "MATCH" ]; then
 				ROOTFS_RESULT="MATCH"
 			else
 				ROOTFS_RESULT="MISMATCH"
